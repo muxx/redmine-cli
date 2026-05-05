@@ -69,3 +69,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ github.ref_name }}
         run: gh release create "$VERSION" dist/* --title "$VERSION" --generate-notes
+
+      - name: Publish Homebrew formula
+        env:
+          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          VERSION: ${{ github.ref_name }}
+          HOMEBREW_TAP_REPOSITORY: muxx/homebrew-tap
+        run: .github/scripts/update-homebrew-formula.sh
