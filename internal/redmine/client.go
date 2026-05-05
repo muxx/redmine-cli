@@ -64,7 +64,8 @@ func NewHTTPClient(timeout time.Duration, insecure bool) *http.Client {
 	}
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	if insecure {
-		transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true} //nolint:gosec
+		// Controlled by the explicit --insecure CLI flag.
+		transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 	}
 	return &http.Client{Timeout: timeout, Transport: transport}
 }
