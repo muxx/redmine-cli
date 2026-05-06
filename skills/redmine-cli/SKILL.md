@@ -1,6 +1,6 @@
 ---
 name: redmine-cli
-description: Use when working with Redmine through the redmine command-line tool: configuring authentication profiles, checking auth, listing/showing/creating/updating Redmine issues, projects, users, trackers, statuses, and discovering command syntax via help.
+description: "Use when working with Redmine through the redmine command-line tool: configuring authentication profiles, checking auth, listing/showing/creating/updating Redmine issues, projects, users, trackers, statuses, and discovering command syntax via help."
 ---
 
 # Redmine CLI
