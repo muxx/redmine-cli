@@ -4,6 +4,22 @@ A Redmine CLI tool bringing Redmine to your command line.
 
 Built based on https://d-yoshi.github.io/redmine-openapi/ ([repo](https://github.com/d-yoshi/redmine-openapi)).
 
+## Usage
+
+```bash
+redmine auth login --profile work --host https://redmine.example.com --api-key "$REDMINE_API_KEY"
+redmine auth login --profile client --host https://client-redmine.example.com --api-key "$CLIENT_REDMINE_API_KEY"
+redmine auth list
+redmine auth use work
+redmine auth status
+redmine --profile client issue list --limit 20
+redmine issue list --limit 20
+redmine issue show 123 --include journals
+redmine issue create --project-id my-project --subject "Fix checkout"
+```
+
+Full generated usage documentation is in [docs/usage.md](docs/usage.md).
+
 ## Install
 
 ### Homebrew
@@ -35,22 +51,6 @@ tar -xzf "redmine_${VERSION}_darwin_arm64.tar.gz"
 sudo install -m 0755 "redmine_${VERSION}_darwin_arm64/redmine" /usr/local/bin/redmine
 redmine --version
 ```
-
-## Usage
-
-```bash
-redmine auth login --profile work --host https://redmine.example.com --api-key "$REDMINE_API_KEY"
-redmine auth login --profile client --host https://client-redmine.example.com --api-key "$CLIENT_REDMINE_API_KEY"
-redmine auth list
-redmine auth use work
-redmine auth status
-redmine --profile client issue list --limit 20
-redmine issue list --limit 20
-redmine issue show 123 --include journals
-redmine issue create --project-id my-project --subject "Fix checkout"
-```
-
-Full generated usage documentation is in [docs/usage.md](docs/usage.md).
 
 ## Development
 
