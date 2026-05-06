@@ -77,6 +77,5 @@ redmine --profile <name> issue update <issue_id> --body @issue-update.json
 ## Working Rules
 
 - Do not create or update issues when required project-specific fields are unknown; inspect Redmine data or ask targeted questions.
-- Use `--output json` when the result will be parsed or reused.
 - Include direct Redmine links in the final response when the host and issue IDs are known.
 - Preserve the server or project text formatting convention for descriptions and notes. If unknown, use plain text.
