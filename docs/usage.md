@@ -10,31 +10,45 @@ Generated from `Redmine API` `1.7.1+redmine.6.1`.
 redmine [command] [subcommand] [flags]
 ```
 
-Set `REDMINE_HOST` and `REDMINE_API_KEY`, or run `redmine auth login --host <url> --api-key <key>`. Login validates credentials with `GET /users/current.json` before saving them.
+Set `REDMINE_HOST` and `REDMINE_API_KEY`, or run `redmine auth login --profile <name> --host <url> --api-key <key>`. Login validates credentials with `GET /users/current.json` before saving them. Successful login stores or updates the selected profile and makes it current.
 
-Common flags: `--host`, `--api-key`, `--username`, `--password`, `--switch-user`, `--output json|yaml|raw`, `--config`.
+Common flags: `--profile`, `--host`, `--api-key`, `--username`, `--password`, `--switch-user`, `--output json|yaml|raw`, `--config`.
+
+Profile selection order: `--profile`, `REDMINE_PROFILE`, current profile from config, `default`.
 
 Request body commands accept generated body flags, repeated `--field key=value`, or `--body @file.json`.
 
 ## Authentication
 
-### `redmine auth login --host <url> --api-key <key>`
+### `redmine auth login --profile <name> --host <url> --api-key <key>`
 
-Checks the credentials with `GET /users/current.json` and saves them to the config file only after a successful response. The API key can also be read from stdin with `--stdin`.
+Checks the credentials with `GET /users/current.json` and saves them to the selected profile only after a successful response. The selected profile is resolved from `--profile`, `REDMINE_PROFILE`, current config profile, or `default`. Successful login makes the selected profile current. The API key can also be read from stdin with `--stdin`.
 
 ### `redmine auth status`
 
-Loads authentication from flags, environment, or config, calls `GET /users/current.json`, and prints the resolved host, auth method, authenticated user, and status.
+Loads authentication from flags, environment, or the selected profile, calls `GET /users/current.json`, and prints the resolved profile, host, auth method, authenticated user, and status.
+
+### `redmine auth list`
+
+Lists saved profiles and marks the current profile.
+
+### `redmine auth use <profile>`
+
+Sets the current profile used when `--profile` and `REDMINE_PROFILE` are not provided.
 
 ### `redmine auth logout`
 
-Removes the saved config file.
+Removes the selected profile. Use `redmine auth logout --all` to remove the entire config file.
 
 ## Examples
 
 ```bash
-redmine auth login --host https://redmine.example.com --api-key "$REDMINE_API_KEY"
+redmine auth login --profile work --host https://redmine.example.com --api-key "$REDMINE_API_KEY"
+redmine auth login --profile client --host https://client-redmine.example.com --api-key "$CLIENT_REDMINE_API_KEY"
+redmine auth list
+redmine auth use work
 redmine auth status
+redmine --profile client issue list --limit 20
 redmine issue list --limit 20
 redmine issue show 123 --include journals
 redmine issue create --project-id my-project --subject "Fix checkout"

@@ -39,7 +39,12 @@ redmine --version
 ## Usage
 
 ```bash
-redmine auth login --host https://redmine.example.com --api-key "$REDMINE_API_KEY"
+redmine auth login --profile work --host https://redmine.example.com --api-key "$REDMINE_API_KEY"
+redmine auth login --profile client --host https://client-redmine.example.com --api-key "$CLIENT_REDMINE_API_KEY"
+redmine auth list
+redmine auth use work
+redmine auth status
+redmine --profile client issue list --limit 20
 redmine issue list --limit 20
 redmine issue show 123 --include journals
 redmine issue create --project-id my-project --subject "Fix checkout"

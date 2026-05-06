@@ -73,7 +73,7 @@ func NewHTTPClient(timeout time.Duration, insecure bool) *http.Client {
 // Do executes a generated operation.
 func (c Client) Do(ctx context.Context, req Request) (Response, error) {
 	if c.BaseURL == "" {
-		return Response{}, fmt.Errorf("redmine host is not configured; set REDMINE_HOST or run `redmine auth login`")
+		return Response{}, fmt.Errorf("redmine host is not configured; set REDMINE_HOST or run `redmine auth login --profile <name>`")
 	}
 	endpoint, err := c.endpoint(req)
 	if err != nil {

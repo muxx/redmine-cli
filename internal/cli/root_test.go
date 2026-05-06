@@ -132,8 +132,54 @@ func TestAuthLoginChecksBeforeSaving(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.Host != server.URL || cfg.APIKey != "secret" {
+	profile := cfg.Profiles[config.DefaultProfileName]
+	if cfg.CurrentProfile != config.DefaultProfileName || profile.Host != server.URL || profile.APIKey != "secret" {
 		t.Fatalf("config = %#v", cfg)
+	}
+}
+
+func TestAuthLoginWithProfileSetsCurrentProfile(t *testing.T) {
+	clearRedmineEnv(t)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/users/current.json" {
+			t.Fatalf("path = %s", r.URL.Path)
+		}
+		if got := r.Header.Get("X-Redmine-API-Key"); got != "secret" {
+			t.Fatalf("api key header = %q", got)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"user":{"login":"profile-user"}}`))
+	}))
+	defer server.Close()
+
+	configPath := t.TempDir() + "/config.yml"
+	var out bytes.Buffer
+	var errOut bytes.Buffer
+	cmd := NewWithIO("test", bytes.NewReader(nil), &out, &errOut, server.Client())
+	cmd.SetArgs([]string{
+		"--config", configPath,
+		"auth", "login",
+		"--profile", "work",
+		"--host", server.URL,
+		"--api-key", "secret",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("execute: %v\nstderr: %s", err, errOut.String())
+	}
+	if !strings.Contains(out.String(), "using profile work") {
+		t.Fatalf("output = %s", out.String())
+	}
+	cfg, err := config.Load(configPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.CurrentProfile != "work" {
+		t.Fatalf("current profile = %q", cfg.CurrentProfile)
+	}
+	if got := cfg.Profiles["work"].Host; got != server.URL {
+		t.Fatalf("profile host = %q", got)
 	}
 }
 
@@ -184,7 +230,12 @@ func TestAuthStatusChecksSavedConfig(t *testing.T) {
 	defer server.Close()
 
 	configPath := t.TempDir() + "/config.yml"
-	if err := config.Save(configPath, config.Config{Host: server.URL, APIKey: "secret"}); err != nil {
+	if err := config.Save(configPath, config.Config{
+		CurrentProfile: "work",
+		Profiles: map[string]config.Profile{
+			"work": {Host: server.URL, APIKey: "secret"},
+		},
+	}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -196,10 +247,177 @@ func TestAuthStatusChecksSavedConfig(t *testing.T) {
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("execute: %v\nstderr: %s", err, errOut.String())
 	}
-	for _, want := range []string{"Auth: api-key", "User: jsmith", "Status: ok"} {
+	for _, want := range []string{"Profile: work", "Auth: api-key", "User: jsmith", "Status: ok"} {
 		if !strings.Contains(out.String(), want) {
 			t.Fatalf("output missing %q: %s", want, out.String())
 		}
+	}
+}
+
+func TestGeneratedCommandUsesSelectedProfile(t *testing.T) {
+	clearRedmineEnv(t)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/issues/42.json" {
+			t.Fatalf("path = %s", r.URL.Path)
+		}
+		if got := r.Header.Get("X-Redmine-API-Key"); got != "work-secret" {
+			t.Fatalf("api key header = %q", got)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"issue":{"id":42}}`))
+	}))
+	defer server.Close()
+
+	configPath := t.TempDir() + "/config.yml"
+	if err := config.Save(configPath, config.Config{
+		CurrentProfile: "default",
+		Profiles: map[string]config.Profile{
+			"default": {Host: "https://wrong.example", APIKey: "wrong"},
+			"work":    {Host: server.URL, APIKey: "work-secret"},
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	var out bytes.Buffer
+	var errOut bytes.Buffer
+	cmd := NewWithIO("test", bytes.NewReader(nil), &out, &errOut, server.Client())
+	cmd.SetArgs([]string{"--config", configPath, "--profile", "work", "issue", "show", "42"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("execute: %v\nstderr: %s", err, errOut.String())
+	}
+	if !bytes.Contains(out.Bytes(), []byte(`"id": 42`)) {
+		t.Fatalf("output = %s", out.String())
+	}
+}
+
+func TestEnvProfileSelectsSavedProfile(t *testing.T) {
+	clearRedmineEnv(t)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := r.Header.Get("X-Redmine-API-Key"); got != "env-profile-secret" {
+			t.Fatalf("api key header = %q", got)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"issue":{"id":42}}`))
+	}))
+	defer server.Close()
+
+	configPath := t.TempDir() + "/config.yml"
+	if err := config.Save(configPath, config.Config{
+		CurrentProfile: "default",
+		Profiles: map[string]config.Profile{
+			"default": {Host: "https://wrong.example", APIKey: "wrong"},
+			"ci":      {Host: server.URL, APIKey: "env-profile-secret"},
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("REDMINE_PROFILE", "ci")
+
+	var out bytes.Buffer
+	var errOut bytes.Buffer
+	cmd := NewWithIO("test", bytes.NewReader(nil), &out, &errOut, server.Client())
+	cmd.SetArgs([]string{"--config", configPath, "issue", "show", "42"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("execute: %v\nstderr: %s", err, errOut.String())
+	}
+}
+
+func TestAuthUseSwitchesCurrentProfile(t *testing.T) {
+	clearRedmineEnv(t)
+
+	configPath := t.TempDir() + "/config.yml"
+	if err := config.Save(configPath, config.Config{
+		CurrentProfile: "default",
+		Profiles: map[string]config.Profile{
+			"default": {Host: "https://default.example", APIKey: "default-secret"},
+			"work":    {Host: "https://work.example", APIKey: "work-secret"},
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	var out bytes.Buffer
+	var errOut bytes.Buffer
+	cmd := NewWithIO("test", bytes.NewReader(nil), &out, &errOut, nil)
+	cmd.SetArgs([]string{"--config", configPath, "auth", "use", "work"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("execute: %v\nstderr: %s", err, errOut.String())
+	}
+	cfg, err := config.Load(configPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.CurrentProfile != "work" {
+		t.Fatalf("current profile = %q", cfg.CurrentProfile)
+	}
+}
+
+func TestAuthListMarksCurrentProfile(t *testing.T) {
+	clearRedmineEnv(t)
+
+	configPath := t.TempDir() + "/config.yml"
+	if err := config.Save(configPath, config.Config{
+		CurrentProfile: "work",
+		Profiles: map[string]config.Profile{
+			"default": {Host: "https://default.example", APIKey: "default-secret"},
+			"work":    {Host: "https://work.example", APIKey: "work-secret"},
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	var out bytes.Buffer
+	var errOut bytes.Buffer
+	cmd := NewWithIO("test", bytes.NewReader(nil), &out, &errOut, nil)
+	cmd.SetArgs([]string{"--config", configPath, "auth", "list"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("execute: %v\nstderr: %s", err, errOut.String())
+	}
+	for _, want := range []string{"Current profile: work", "* work\thttps://work.example", "  default\thttps://default.example"} {
+		if !strings.Contains(out.String(), want) {
+			t.Fatalf("output missing %q: %s", want, out.String())
+		}
+	}
+}
+
+func TestAuthLogoutRemovesSelectedProfileAndKeepsAnotherCurrent(t *testing.T) {
+	clearRedmineEnv(t)
+
+	configPath := t.TempDir() + "/config.yml"
+	if err := config.Save(configPath, config.Config{
+		CurrentProfile: "work",
+		Profiles: map[string]config.Profile{
+			"default": {Host: "https://default.example", APIKey: "default-secret"},
+			"work":    {Host: "https://work.example", APIKey: "work-secret"},
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	var out bytes.Buffer
+	var errOut bytes.Buffer
+	cmd := NewWithIO("test", bytes.NewReader(nil), &out, &errOut, nil)
+	cmd.SetArgs([]string{"--config", configPath, "auth", "logout"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("execute: %v\nstderr: %s", err, errOut.String())
+	}
+	cfg, err := config.Load(configPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := cfg.Profiles["work"]; ok {
+		t.Fatalf("work profile still exists: %#v", cfg)
+	}
+	if cfg.CurrentProfile != "default" {
+		t.Fatalf("current profile = %q", cfg.CurrentProfile)
 	}
 }
 
@@ -241,4 +459,5 @@ func clearRedmineEnv(t *testing.T) {
 	t.Setenv("REDMINE_USERNAME", "")
 	t.Setenv("REDMINE_PASSWORD", "")
 	t.Setenv("REDMINE_SWITCH_USER", "")
+	t.Setenv("REDMINE_PROFILE", "")
 }
