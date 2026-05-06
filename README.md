@@ -52,6 +52,26 @@ sudo install -m 0755 "redmine_${VERSION}_darwin_arm64/redmine" /usr/local/bin/re
 redmine --version
 ```
 
+## Codex Skill
+
+This repository includes a general-purpose Codex skill for working with Redmine through this CLI:
+[skills/redmine-cli/SKILL.md](skills/redmine-cli/SKILL.md).
+
+Install the skill into Codex:
+
+```bash
+make install-skill
+```
+
+Or install it manually:
+
+```bash
+mkdir -p "${CODEX_HOME:-$HOME/.codex}/skills/redmine-cli"
+rsync -a skills/redmine-cli/ "${CODEX_HOME:-$HOME/.codex}/skills/redmine-cli/"
+```
+
+Restart Codex after installing the skill. The skill assumes that the `redmine` executable is already installed and available in `PATH`.
+
 ## Development
 
 The command metadata and usage docs are generated from `openapi/openapi.yaml`.
