@@ -1,4 +1,0 @@
-interface:
-  display_name: "Redmine CLI"
-  short_description: "Work with Redmine through the redmine CLI"
-  default_prompt: "Use the redmine CLI for Redmine work. Configure and select authentication profiles, check auth before changes, inspect command help when syntax is unclear, and avoid raw REST fallbacks unless explicitly approved."

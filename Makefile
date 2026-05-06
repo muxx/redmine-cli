@@ -4,9 +4,6 @@ OPENAPI_SPEC ?= $(OPENAPI_SPEC_DIR)/openapi.yaml
 GO ?= go
 BINARY ?= redmine
 BIN_DIR ?= bin
-CODEX_HOME ?= $(HOME)/.codex
-SKILL ?= redmine-cli
-SKILL_DIR ?= skills/$(SKILL)
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS ?= -s -w -X main.version=$(VERSION)
 ALL_GOFILES := $(shell find . -name '*.go' -not -path './vendor/*')
@@ -15,13 +12,12 @@ GOIMPORTS_PKG ?= golang.org/x/tools/cmd/goimports@v0.44.0
 
 .DEFAULT_GOAL := help
 
-.PHONY: help download-openapi-spec build install install-skill lint fix test gen gen-docs check-gen check clean
+.PHONY: help download-openapi-spec build install lint fix test gen gen-docs check-gen check clean
 help:
 	@echo "Targets:"
 	@echo "  download-openapi-spec  Download latest Redmine OpenAPI spec to $(OPENAPI_SPEC)"
 	@echo "  build                  Compile $(BINARY)"
 	@echo "  install                Install $(BINARY)"
-	@echo "  install-skill          Install the $(SKILL) Codex skill to $(CODEX_HOME)/skills/$(SKILL)"
 	@echo "  lint                   Verify gofmt/goimports on all Go files and run go vet"
 	@echo "  fix                    Run gofmt and goimports on all Go files"
 	@echo "  test                   Run unit tests"
@@ -45,12 +41,6 @@ build:
 
 install:
 	$(GO) install -trimpath -ldflags "$(LDFLAGS)" ./cmd/redmine
-
-install-skill:
-	@test -f "$(SKILL_DIR)/SKILL.md"
-	@mkdir -p "$(CODEX_HOME)/skills/$(SKILL)"
-	rsync -a "$(SKILL_DIR)/" "$(CODEX_HOME)/skills/$(SKILL)/"
-	@echo "Installed $(SKILL) skill to $(CODEX_HOME)/skills/$(SKILL)"
 
 lint:
 	@tmp=$$(mktemp -d); \

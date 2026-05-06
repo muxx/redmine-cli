@@ -52,25 +52,14 @@ sudo install -m 0755 "redmine_${VERSION}_darwin_arm64/redmine" /usr/local/bin/re
 redmine --version
 ```
 
-## Codex Skill
+## Agent Skill
 
-This repository includes a general-purpose Codex skill for working with Redmine through this CLI:
+This repository includes general-purpose agent instructions for working with Redmine through this CLI:
 [skills/redmine-cli/SKILL.md](skills/redmine-cli/SKILL.md).
 
-Install the skill into Codex:
+The skill is not tied to a specific agent runtime. To use it, copy `skills/redmine-cli/SKILL.md` into your agent's skills, memories, or custom instructions mechanism.
 
-```bash
-make install-skill
-```
-
-Or install it manually:
-
-```bash
-mkdir -p "${CODEX_HOME:-$HOME/.codex}/skills/redmine-cli"
-rsync -a skills/redmine-cli/ "${CODEX_HOME:-$HOME/.codex}/skills/redmine-cli/"
-```
-
-Restart Codex after installing the skill. The skill assumes that the `redmine` executable is already installed and available in `PATH`.
+If your agent supports skill folders, copy the whole `skills/redmine-cli/` directory. Reload or restart the agent if its instructions are loaded only on startup. The skill assumes that the `redmine` executable is already installed and available in `PATH`.
 
 ## Development
 

@@ -10,7 +10,7 @@ Use the `redmine` command for Redmine API work. Prefer it over raw REST calls or
 ## Setup
 
 - Check the tool first: `redmine --version`.
-- If it is missing, ask the user to install it from the project README.
+- If it is missing, ask the user to install it from Homebrew or release artifacts.
 - Use named profiles for every persistent Redmine connection.
 - Configure a profile:
 
@@ -44,7 +44,7 @@ redmine issue --help
 redmine issue update --help
 ```
 
-Use `docs/usage.md` in the `redmine-cli` repository for the generated full command reference.
+Use `redmine --help` and subcommand help as the primary command reference. If the `redmine-cli` repository is available, `docs/usage.md` contains the generated full command reference.
 
 ## Common Commands
 
