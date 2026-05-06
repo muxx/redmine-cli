@@ -9,13 +9,20 @@ import (
 )
 
 const appName = "redmine-cli"
+const DefaultProfileName = "default"
 
-// Config stores authentication defaults for Redmine.
-type Config struct {
+// Profile stores authentication defaults for one Redmine instance.
+type Profile struct {
 	Host     string `yaml:"host,omitempty"`
 	APIKey   string `yaml:"api_key,omitempty"`
 	Username string `yaml:"username,omitempty"`
 	Password string `yaml:"password,omitempty"`
+}
+
+// Config stores authentication profiles for Redmine.
+type Config struct {
+	CurrentProfile string             `yaml:"current_profile,omitempty"`
+	Profiles       map[string]Profile `yaml:"profiles,omitempty"`
 }
 
 // DefaultPath returns the CLI configuration path.
@@ -70,6 +77,25 @@ func Save(path string, cfg Config) error {
 		return err
 	}
 	return os.WriteFile(path, data, 0o600)
+}
+
+// SetProfile stores a profile and makes sure the profiles map exists.
+func (c *Config) SetProfile(name string, profile Profile) {
+	if c.Profiles == nil {
+		c.Profiles = map[string]Profile{}
+	}
+	c.Profiles[name] = profile
+}
+
+// DeleteProfile removes a saved profile.
+func (c *Config) DeleteProfile(name string) {
+	delete(c.Profiles, name)
+	if len(c.Profiles) == 0 {
+		c.Profiles = nil
+	}
+	if c.CurrentProfile == name {
+		c.CurrentProfile = ""
+	}
 }
 
 // Remove deletes configuration. A missing file is not an error.

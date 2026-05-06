@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"sort"
 	"strings"
 
 	"github.com/muxx/redmine-cli/internal/config"
@@ -45,16 +46,36 @@ func addAuthCommands(root *cobra.Command, opts *rootOptions) {
 	})
 
 	auth.AddCommand(&cobra.Command{
+		Use:   "list",
+		Short: "List authentication profiles",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runList(opts)
+		},
+	})
+
+	auth.AddCommand(&cobra.Command{
+		Use:   "use <profile>",
+		Short: "Set the current authentication profile",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runUse(opts, args[0])
+		},
+	})
+
+	var logout logoutOptions
+	logoutCmd := &cobra.Command{
 		Use:   "logout",
 		Short: "Remove saved authentication",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := config.Remove(opts.configPath); err != nil {
-				return err
-			}
-			_, err := fmt.Fprintln(opts.out, "Logged out")
-			return err
+			return runLogout(opts, logout)
 		},
-	})
+	}
+	logoutCmd.Flags().BoolVar(&logout.all, "all", false, "Remove all saved profiles")
+	auth.AddCommand(logoutCmd)
+}
+
+type logoutOptions struct {
+	all bool
 }
 
 type loginOptions struct {
@@ -66,6 +87,15 @@ type loginOptions struct {
 }
 
 func runLogin(cmd *cobra.Command, opts *rootOptions, login loginOptions) error {
+	fileCfg, err := config.Load(opts.configPath)
+	if err != nil {
+		return err
+	}
+	profileName := selectedProfileName(opts, fileCfg)
+	if strings.TrimSpace(profileName) == "" {
+		return fmt.Errorf("profile name is required")
+	}
+
 	host := firstNonEmpty(login.host, opts.host)
 	if host == "" {
 		return fmt.Errorf("--host is required")
@@ -84,20 +114,22 @@ func runLogin(cmd *cobra.Command, opts *rootOptions, login loginOptions) error {
 		return fmt.Errorf("provide --api-key or --username/--password")
 	}
 
-	cfg := config.Config{
+	profile := config.Profile{
 		Host:     host,
 		APIKey:   apiKey,
 		Username: username,
 		Password: password,
 	}
-	result, err := checkAuth(cmd, opts, resolvedFromConfig(cfg))
+	result, err := checkAuth(cmd, opts, resolvedFromProfile(profileName, profile))
 	if err != nil {
 		return err
 	}
-	if err := config.Save(opts.configPath, cfg); err != nil {
+	fileCfg.SetProfile(profileName, profile)
+	fileCfg.CurrentProfile = profileName
+	if err := config.Save(opts.configPath, fileCfg); err != nil {
 		return err
 	}
-	_, err = fmt.Fprintf(opts.out, "Logged in to %s as %s\n", host, result.User)
+	_, err = fmt.Fprintf(opts.out, "Logged in to %s as %s using profile %s\n", host, result.User, profileName)
 	return err
 }
 
@@ -115,7 +147,7 @@ func runStatus(cmd *cobra.Command, opts *rootOptions) error {
 		return err
 	}
 	if resolvedCfg.Host == "" {
-		_, err := fmt.Fprintf(opts.out, "No Redmine authentication configured at %s\n", path)
+		_, err := fmt.Fprintf(opts.out, "No Redmine authentication configured for profile %s at %s\n", resolvedCfg.Profile, path)
 		return err
 	}
 	result, err := checkAuth(cmd, opts, resolvedCfg)
@@ -129,8 +161,100 @@ func runStatus(cmd *cobra.Command, opts *rootOptions) error {
 	case resolvedCfg.Username != "" || resolvedCfg.Password != "":
 		method = "basic"
 	}
-	_, err = fmt.Fprintf(opts.out, "Host: %s\nAuth: %s\nUser: %s\nStatus: ok\nConfig: %s\n", resolvedCfg.Host, method, result.User, path)
+	_, err = fmt.Fprintf(opts.out, "Profile: %s\nHost: %s\nAuth: %s\nUser: %s\nStatus: ok\nConfig: %s\n", resolvedCfg.Profile, resolvedCfg.Host, method, result.User, path)
 	return err
+}
+
+func runList(opts *rootOptions) error {
+	path := opts.configPath
+	if path == "" {
+		defaultPath, err := config.DefaultPath()
+		if err != nil {
+			return err
+		}
+		path = defaultPath
+	}
+	fileCfg, err := config.Load(opts.configPath)
+	if err != nil {
+		return err
+	}
+	if len(fileCfg.Profiles) == 0 {
+		_, err := fmt.Fprintf(opts.out, "No Redmine profiles configured at %s\n", path)
+		return err
+	}
+	current := firstNonEmpty(fileCfg.CurrentProfile, config.DefaultProfileName)
+	_, _ = fmt.Fprintf(opts.out, "Current profile: %s\nProfiles:\n", current)
+	for _, name := range sortedProfileNames(fileCfg.Profiles) {
+		marker := " "
+		if name == current {
+			marker = "*"
+		}
+		_, _ = fmt.Fprintf(opts.out, "%s %s\t%s\n", marker, name, fileCfg.Profiles[name].Host)
+	}
+	return nil
+}
+
+func runUse(opts *rootOptions, profileName string) error {
+	if strings.TrimSpace(profileName) == "" {
+		return fmt.Errorf("profile name is required")
+	}
+	fileCfg, err := config.Load(opts.configPath)
+	if err != nil {
+		return err
+	}
+	if _, ok := fileCfg.Profiles[profileName]; !ok {
+		return fmt.Errorf("profile %q is not configured", profileName)
+	}
+	fileCfg.CurrentProfile = profileName
+	if err := config.Save(opts.configPath, fileCfg); err != nil {
+		return err
+	}
+	_, err = fmt.Fprintf(opts.out, "Current profile set to %s\n", profileName)
+	return err
+}
+
+func runLogout(opts *rootOptions, logout logoutOptions) error {
+	if logout.all {
+		if err := config.Remove(opts.configPath); err != nil {
+			return err
+		}
+		_, err := fmt.Fprintln(opts.out, "Logged out from all profiles")
+		return err
+	}
+
+	fileCfg, err := config.Load(opts.configPath)
+	if err != nil {
+		return err
+	}
+	profileName := selectedProfileName(opts, fileCfg)
+	if _, ok := fileCfg.Profiles[profileName]; !ok {
+		return fmt.Errorf("profile %q is not configured", profileName)
+	}
+	fileCfg.DeleteProfile(profileName)
+	if len(fileCfg.Profiles) == 0 {
+		if err := config.Remove(opts.configPath); err != nil {
+			return err
+		}
+		_, err := fmt.Fprintf(opts.out, "Logged out from profile %s\n", profileName)
+		return err
+	}
+	if fileCfg.CurrentProfile == "" {
+		fileCfg.CurrentProfile = sortedProfileNames(fileCfg.Profiles)[0]
+	}
+	if err := config.Save(opts.configPath, fileCfg); err != nil {
+		return err
+	}
+	_, err = fmt.Fprintf(opts.out, "Logged out from profile %s\n", profileName)
+	return err
+}
+
+func sortedProfileNames(profiles map[string]config.Profile) []string {
+	names := make([]string, 0, len(profiles))
+	for name := range profiles {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
 }
 
 type authCheckResult struct {

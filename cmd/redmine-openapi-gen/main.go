@@ -726,14 +726,19 @@ func renderDocs(doc *document, ops []openapi.Operation) []byte {
 	buf.WriteString("```bash\n")
 	buf.WriteString("redmine [command] [subcommand] [flags]\n")
 	buf.WriteString("```\n\n")
-	buf.WriteString("Set `REDMINE_HOST` and `REDMINE_API_KEY`, or run `redmine auth login --host <url> --api-key <key>`. Login validates credentials with `GET /users/current.json` before saving them.\n\n")
-	buf.WriteString("Common flags: `--host`, `--api-key`, `--username`, `--password`, `--switch-user`, `--output json|yaml|raw`, `--config`.\n\n")
+	buf.WriteString("Set `REDMINE_HOST` and `REDMINE_API_KEY`, or run `redmine auth login --profile <name> --host <url> --api-key <key>`. Login validates credentials with `GET /users/current.json` before saving them. Successful login stores or updates the selected profile and makes it current.\n\n")
+	buf.WriteString("Common flags: `--profile`, `--host`, `--api-key`, `--username`, `--password`, `--switch-user`, `--output json|yaml|raw`, `--config`.\n\n")
+	buf.WriteString("Profile selection order: `--profile`, `REDMINE_PROFILE`, current profile from config, `default`.\n\n")
 	buf.WriteString("Request body commands accept generated body flags, repeated `--field key=value`, or `--body @file.json`.\n\n")
 	renderAuthDocs(&buf)
 	buf.WriteString("## Examples\n\n")
 	buf.WriteString("```bash\n")
-	buf.WriteString("redmine auth login --host https://redmine.example.com --api-key \"$REDMINE_API_KEY\"\n")
+	buf.WriteString("redmine auth login --profile work --host https://redmine.example.com --api-key \"$REDMINE_API_KEY\"\n")
+	buf.WriteString("redmine auth login --profile client --host https://client-redmine.example.com --api-key \"$CLIENT_REDMINE_API_KEY\"\n")
+	buf.WriteString("redmine auth list\n")
+	buf.WriteString("redmine auth use work\n")
 	buf.WriteString("redmine auth status\n")
+	buf.WriteString("redmine --profile client issue list --limit 20\n")
 	buf.WriteString("redmine issue list --limit 20\n")
 	buf.WriteString("redmine issue show 123 --include journals\n")
 	buf.WriteString("redmine issue create --project-id my-project --subject \"Fix checkout\"\n")
@@ -769,12 +774,16 @@ func renderDocs(doc *document, ops []openapi.Operation) []byte {
 
 func renderAuthDocs(buf *bytes.Buffer) {
 	buf.WriteString("## Authentication\n\n")
-	buf.WriteString("### `redmine auth login --host <url> --api-key <key>`\n\n")
-	buf.WriteString("Checks the credentials with `GET /users/current.json` and saves them to the config file only after a successful response. The API key can also be read from stdin with `--stdin`.\n\n")
+	buf.WriteString("### `redmine auth login --profile <name> --host <url> --api-key <key>`\n\n")
+	buf.WriteString("Checks the credentials with `GET /users/current.json` and saves them to the selected profile only after a successful response. The selected profile is resolved from `--profile`, `REDMINE_PROFILE`, current config profile, or `default`. Successful login makes the selected profile current. The API key can also be read from stdin with `--stdin`.\n\n")
 	buf.WriteString("### `redmine auth status`\n\n")
-	buf.WriteString("Loads authentication from flags, environment, or config, calls `GET /users/current.json`, and prints the resolved host, auth method, authenticated user, and status.\n\n")
+	buf.WriteString("Loads authentication from flags, environment, or the selected profile, calls `GET /users/current.json`, and prints the resolved profile, host, auth method, authenticated user, and status.\n\n")
+	buf.WriteString("### `redmine auth list`\n\n")
+	buf.WriteString("Lists saved profiles and marks the current profile.\n\n")
+	buf.WriteString("### `redmine auth use <profile>`\n\n")
+	buf.WriteString("Sets the current profile used when `--profile` and `REDMINE_PROFILE` are not provided.\n\n")
 	buf.WriteString("### `redmine auth logout`\n\n")
-	buf.WriteString("Removes the saved config file.\n\n")
+	buf.WriteString("Removes the selected profile. Use `redmine auth logout --all` to remove the entire config file.\n\n")
 }
 
 func renderOperationDocs(buf *bytes.Buffer, op openapi.Operation) {
@@ -873,7 +882,7 @@ func oneLine(value string) string {
 
 func reservedFlagName(name string) bool {
 	switch name {
-	case "api-key", "body", "config", "field", "header", "help", "host", "input", "insecure", "output", "param", "password", "switch-user", "timeout", "username", "version":
+	case "api-key", "body", "config", "field", "header", "help", "host", "input", "insecure", "output", "param", "password", "profile", "switch-user", "timeout", "username", "version":
 		return true
 	default:
 		return false

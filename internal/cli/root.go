@@ -47,6 +47,7 @@ func NewWithIO(version string, in io.Reader, out, errOut io.Writer, httpClient *
 
 	flags := root.PersistentFlags()
 	flags.StringVar(&opts.configPath, "config", "", "Config file path")
+	flags.StringVar(&opts.profile, "profile", "", "Authentication profile")
 	flags.StringVar(&opts.host, "host", "", "Redmine base URL")
 	flags.StringVar(&opts.apiKey, "api-key", "", "Redmine API key")
 	flags.StringVar(&opts.username, "username", "", "Basic auth username")
@@ -69,6 +70,7 @@ type rootOptions struct {
 	httpClient *http.Client
 
 	configPath string
+	profile    string
 	host       string
 	apiKey     string
 	username   string
@@ -154,7 +156,7 @@ func operationCommand(opts *rootOptions, op openapi.Operation) *cobra.Command {
 
 func reservedFlag(name string) bool {
 	switch name {
-	case "api-key", "body", "config", "field", "header", "help", "host", "input", "insecure", "output", "param", "password", "switch-user", "timeout", "username", "version":
+	case "api-key", "body", "config", "field", "header", "help", "host", "input", "insecure", "output", "param", "password", "profile", "switch-user", "timeout", "username", "version":
 		return true
 	default:
 		return false
@@ -231,6 +233,7 @@ func runOperation(cmd *cobra.Command, opts *rootOptions, op openapi.Operation, f
 }
 
 type resolved struct {
+	Profile    string
 	Host       string
 	APIKey     string
 	Username   string
@@ -238,12 +241,13 @@ type resolved struct {
 	SwitchUser string
 }
 
-func resolvedFromConfig(cfg config.Config) resolved {
+func resolvedFromProfile(profileName string, profile config.Profile) resolved {
 	return resolved{
-		Host:     cfg.Host,
-		APIKey:   cfg.APIKey,
-		Username: cfg.Username,
-		Password: cfg.Password,
+		Profile:  profileName,
+		Host:     profile.Host,
+		APIKey:   profile.APIKey,
+		Username: profile.Username,
+		Password: profile.Password,
 	}
 }
 
@@ -252,13 +256,20 @@ func resolvedConfig(opts *rootOptions) (resolved, error) {
 	if err != nil {
 		return resolved{}, err
 	}
+	profileName := selectedProfileName(opts, fileCfg)
+	profile := fileCfg.Profiles[profileName]
 	return resolved{
-		Host:       firstNonEmpty(opts.host, os.Getenv("REDMINE_HOST"), fileCfg.Host),
-		APIKey:     firstNonEmpty(opts.apiKey, os.Getenv("REDMINE_API_KEY"), fileCfg.APIKey),
-		Username:   firstNonEmpty(opts.username, os.Getenv("REDMINE_USERNAME"), fileCfg.Username),
-		Password:   firstNonEmpty(opts.password, os.Getenv("REDMINE_PASSWORD"), fileCfg.Password),
+		Profile:    profileName,
+		Host:       firstNonEmpty(opts.host, os.Getenv("REDMINE_HOST"), profile.Host),
+		APIKey:     firstNonEmpty(opts.apiKey, os.Getenv("REDMINE_API_KEY"), profile.APIKey),
+		Username:   firstNonEmpty(opts.username, os.Getenv("REDMINE_USERNAME"), profile.Username),
+		Password:   firstNonEmpty(opts.password, os.Getenv("REDMINE_PASSWORD"), profile.Password),
 		SwitchUser: firstNonEmpty(opts.switchUser, os.Getenv("REDMINE_SWITCH_USER")),
 	}, nil
+}
+
+func selectedProfileName(opts *rootOptions, cfg config.Config) string {
+	return firstNonEmpty(opts.profile, os.Getenv("REDMINE_PROFILE"), cfg.CurrentProfile, config.DefaultProfileName)
 }
 
 func collectParameters(generated map[string]*parameterValues, extra []string) (map[string][]string, error) {
