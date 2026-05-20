@@ -147,17 +147,25 @@ func (c Client) endpoint(req Request) (string, error) {
 		return "", fmt.Errorf("redmine host must include scheme and host, got %q", c.BaseURL)
 	}
 
-	path := req.Operation.Path
-	path = strings.ReplaceAll(path, "{format}", "json")
+	basePath := strings.TrimRight(base.Path, "/")
+	baseEscapedPath := strings.TrimRight(base.EscapedPath(), "/")
+
+	decodedPath := req.Operation.Path
+	escapedPath := req.Operation.Path
+	decodedPath = strings.ReplaceAll(decodedPath, "{format}", "json")
+	escapedPath = strings.ReplaceAll(escapedPath, "{format}", "json")
 	for _, param := range req.Operation.PathParams {
 		value, ok := req.Path[param.Name]
 		if !ok || value == "" {
 			return "", fmt.Errorf("missing path argument %s", param.Name)
 		}
-		path = strings.ReplaceAll(path, "{"+param.Name+"}", url.PathEscape(value))
+		placeholder := "{" + param.Name + "}"
+		decodedPath = strings.ReplaceAll(decodedPath, placeholder, value)
+		escapedPath = strings.ReplaceAll(escapedPath, placeholder, url.PathEscape(value))
 	}
 
-	base.Path = strings.TrimRight(base.Path, "/") + path
+	base.Path = basePath + decodedPath
+	base.RawPath = baseEscapedPath + escapedPath
 	query := base.Query()
 	for name, values := range req.Query {
 		for _, value := range values {
