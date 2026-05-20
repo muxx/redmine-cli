@@ -1,9 +1,9 @@
 package redmine
 
 import (
-	"context"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 
 	"github.com/muxx/redmine-cli/internal/openapi"
@@ -33,7 +33,7 @@ func TestClientDoBuildsRequest(t *testing.T) {
 		APIKey:     "secret",
 		HTTPClient: server.Client(),
 	}
-	resp, err := client.Do(context.Background(), Request{
+	resp, err := client.Do(t.Context(), Request{
 		Operation: openapi.Operation{
 			ID:     "getIssue",
 			Method: http.MethodGet,
@@ -50,5 +50,52 @@ func TestClientDoBuildsRequest(t *testing.T) {
 	}
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("status = %d", resp.StatusCode)
+	}
+}
+
+func TestClientEndpointEscapesPathParamsOnce(t *testing.T) {
+	client := Client{BaseURL: "https://redmine.example/redmine"}
+	operation := openapi.Operation{
+		ID:     "getWikiPage",
+		Method: http.MethodGet,
+		Path:   "/projects/{project_id}/wiki/{wiki_page_title}.{format}",
+		PathParams: []openapi.Parameter{
+			{Name: "project_id"},
+			{Name: "wiki_page_title"},
+		},
+	}
+
+	tests := []struct {
+		name  string
+		title string
+	}{
+		{
+			name:  "non-ASCII wiki page title",
+			title: "AI-трансформация_RD",
+		},
+		{
+			name:  "reserved path characters",
+			title: "100% done/with space",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := client.endpoint(Request{
+				Operation: operation,
+				Path: map[string]string{
+					"project_id":      "r-handbook",
+					"wiki_page_title": tt.title,
+				},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			want := "https://redmine.example/redmine/projects/r-handbook/wiki/" + url.PathEscape(tt.title) + ".json"
+			if got != want {
+				t.Fatalf("endpoint = %s, want %s", got, want)
+			}
+		})
 	}
 }
