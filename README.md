@@ -31,6 +31,22 @@ redmine --version
 
 The Homebrew formula is named `redmine-cli`; it installs the `redmine` executable.
 
+### [mise](https://mise.jdx.dev) GitHub backend
+
+```bash
+mise use -g github:muxx/redmine-cli
+redmine --version
+```
+
+### Go install
+
+This method requires Go to be installed on your system.
+
+```bash
+go install github.com/muxx/redmine-cli/cmd/redmine@latest
+redmine --version
+```
+
 ### GitHub release archive
 
 Download the archive for your OS and architecture from the [latest release](https://github.com/muxx/redmine-cli/releases/latest).
